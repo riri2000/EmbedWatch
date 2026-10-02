@@ -10,14 +10,6 @@ jobs:
   test-and-scan:
     runs-on: ubuntu-latest
 
-    services:
-      mosquitto:
-        image: eclipse-mosquitto:2
-        ports:
-          - 1883:1883
-        volumes:
-          - ${{ github.workspace }}/.mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
-
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +20,12 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+
+      - name: Start Mosquitto
+        run: |
+          docker run -d --name mosquitto -p 1883:1883 \
+            -v "$(pwd)/.mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf" \
+            eclipse-mosquitto:2
 
       - name: Install mosquitto-clients (for the healthcheck step)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq mosquitto-clients
