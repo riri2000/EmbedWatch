@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EmbedWatch</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e5e5; font-size: 0.9rem; }
+  th { color: #666; font-weight: 600; }
+  .status { font-size: 0.85rem; padding: 4px 10px; border-radius: 12px; display: inline-block; }
+  .status.live { background: #dcfce7; color: #166534; }
+  .status.offline { background: #fee2e2; color: #991b1b; }
+  tr.new { animation: flash 1s ease-out; }
+  @keyframes flash { from { background: #fef9c3; } to { background: transparent; } }
+</style>
+</head>
+<body>
+  <h1>EmbedWatch — live sensor feed</h1>
+  <span id="status" class="status offline">connecting…</span>
+  <table>
+    <thead><tr><th>Sensor</th><th>Type</th><th>Value</th><th>Received</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+<script>
+  const statusEl = document.getElementById("status");
+  const rowsEl = document.getElementById("rows");
+  const MAX_ROWS = 25;
+
+  function connect() {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${proto}//${location.host}/ws/live`);
+
+    ws.onopen = () => {
+      statusEl.textContent = "live";
+      statusEl.className = "status live";
+    };
+    ws.onclose = () => {
+      statusEl.textContent = "disconnected — retrying…";
+      statusEl.className = "status offline";
+      setTimeout(connect, 2000);
+    };
+    ws.onmessage = (event) => {
+      const r = JSON.parse(event.data);
+      const row = document.createElement("tr");
+      row.className = "new";
+      row.innerHTML = `<td>${r.sensor_id}</td><td>${r.sensor_type}</td>` +
+        `<td>${r.value} ${r.unit}</td><td>${new Date(r.received_at).toLocaleTimeString()}</td>`;
+      rowsEl.prepend(row);
+      while (rowsEl.children.length > MAX_ROWS) rowsEl.removeChild(rowsEl.lastChild);
+    };
+  }
+
+  connect();
+</script>
+</body>
+</html>

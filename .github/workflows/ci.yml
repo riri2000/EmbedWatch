@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-scan:
+    runs-on: ubuntu-latest
+
+    services:
+      mosquitto:
+        image: eclipse-mosquitto:2
+        ports:
+          - 1883:1883
+        volumes:
+          - ${{ github.workspace }}/.mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Install mosquitto-clients (for the healthcheck step)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq mosquitto-clients
+
+      - name: Wait for Mosquitto to accept connections
+        run: |
+          for i in $(seq 1 10); do
+            mosquitto_pub -h localhost -p 1883 -t ci/healthcheck -m ping 2>/dev/null && break
+            sleep 1
+          done
+
+      - name: Run test suite (unit + real MQTT integration tests)
+        run: pytest -v
+
+      - name: Static security scan (Bandit)
+        run: bandit -r app/ -ll
+
+      - name: Dependency vulnerability scan (Safety)
+        run: safety check -r requirements.txt --full-report
+        continue-on-error: true
